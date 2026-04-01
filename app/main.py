@@ -1,7 +1,33 @@
 from fastapi import FastAPI
+import psycopg2
+import os
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"message": "Hello from AKS 🚀"}
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+
+@app.get("/create-table")
+def create_table():
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASS
+    )
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS test_table (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100)
+        );
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Table created successfully"}
