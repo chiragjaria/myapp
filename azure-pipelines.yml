@@ -3,6 +3,7 @@ trigger:
 
 pool:
   name: aks-agent-pool
+  
 variables:
   imageName: fastapi-app
   acrLoginServer: myacrdevcj.azurecr.io
