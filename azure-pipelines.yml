@@ -1,6 +1,3 @@
-pool:
-  name: aks-agent-pool
-
 trigger:
 - main
   
@@ -17,7 +14,7 @@ stages:
   jobs:
   - job: BuildJob
     pool:
-      vmImage: ubuntu-latest
+      name: aks-agent-pool   # ✅ using your agent
 
     steps:
 
@@ -47,6 +44,7 @@ stages:
         pathToPublish: $(System.DefaultWorkingDirectory)
         artifactName: drop
 
+
 # ================= CD =================
 - stage: Deploy
   displayName: Deploy to AKS
@@ -55,10 +53,10 @@ stages:
   jobs:
   - job: DeployJob
     pool:
-      vmImage: ubuntu-latest
+      name: aks-agent-pool   # ✅ using your agent
 
     variables:
-    - group: AKV-Variables   # linked to Azure Key Vault
+    - group: AKV-Variables
 
     steps:
 
@@ -69,7 +67,7 @@ stages:
         sed -i 's|POSTGRES_HOST|$(phost)|g' deployment.yaml
         sed -i 's|POSTGRES_USER|$(puser)|g' deployment.yaml
         sed -i 's|POSTGRES_PASSWORD|$(ppassword)|g' deployment.yaml
-      displayName: Inject Secrets from AKV
+      displayName: Inject Secrets
 
     - task: Kubernetes@1
       displayName: Deploy to AKS
