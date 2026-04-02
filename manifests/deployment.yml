@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: chiragjariamyapp 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chiragjariamyapp
+  template:
+    metadata:
+      labels:
+        app: chiragjariamyapp 
+    spec:
+      containers:
+        - name: chiragjariamyapp 
+          image: myacrdevcj.azurecr.io/chiragjariamyapp
+          ports:
+          - containerPort: 80
