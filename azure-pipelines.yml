@@ -14,24 +14,18 @@ stages:
   jobs:
   - job: BuildJob
     pool:
-      name: aks-agent-pool   # ✅ custom agent
+      name: aks-agent-pool
 
     steps:
 
     - checkout: self
 
-    # ✅ Fix Python + pip issue
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '3.10'
-      displayName: Use Python 3.10
-
     - script: |
+        python --version
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
       displayName: Install Dependencies
 
-    # ✅ Docker Build & Push
     - task: Docker@2
       displayName: Build and Push Image to ACR
       inputs:
@@ -42,12 +36,10 @@ stages:
         tags: |
           $(Build.BuildId)
 
-    # ✅ Replace image tag in deployment.yaml
     - script: |
         sed -i 's|IMAGE_TAG|$(Build.BuildId)|g' deployment.yaml
       displayName: Replace Image Tag
 
-    # ✅ Publish artifact
     - task: PublishBuildArtifacts@1
       displayName: Publish Artifact
       inputs:
@@ -63,24 +55,22 @@ stages:
   jobs:
   - job: DeployJob
     pool:
-      name: aks-agent-pool   # ✅ custom agent
+      name: aks-agent-pool
 
     variables:
-    - group: AKV-Variables   # ✅ Key Vault linked
+    - group: AKV-Variables
 
     steps:
 
     - download: current
       artifact: drop
 
-    # ✅ Inject secrets from AKV
     - script: |
         sed -i 's|POSTGRES_HOST|$(phost)|g' deployment.yaml
         sed -i 's|POSTGRES_USER|$(puser)|g' deployment.yaml
         sed -i 's|POSTGRES_PASSWORD|$(ppassword)|g' deployment.yaml
       displayName: Inject Secrets
 
-    # ✅ Deploy to AKS
     - task: Kubernetes@1
       displayName: Deploy to AKS
       inputs:
