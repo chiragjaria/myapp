@@ -85,14 +85,14 @@ stages:
                   --dry-run=client -o yaml | kubectl apply -f -
 
           # Deploy using manifests
-          - task: KubernetesManifest@1
-            displayName: Deploy to AKS
-            inputs:
-              action: deploy
-              kubernetesServiceConnection: aks-service-connection  # ← must be AKS type
-              namespace: default
-              manifests: |
-                $(Pipeline.Workspace)/manifests/deployment.yaml
-                $(Pipeline.Workspace)/manifests/service.yaml
-              containers: |
-                $(acrName).azurecr.io/$(imageName):$(Build.BuildId)
+- task: KubernetesManifest@1
+  displayName: Deploy to AKS
+  inputs:
+    action: deploy
+    # remove kubernetesServiceConnection line entirely
+    namespace: default
+    manifests: |
+      $(Pipeline.Workspace)/manifests/deployment.yaml
+      $(Pipeline.Workspace)/manifests/service.yaml
+    containers: |
+      $(acrName).azurecr.io/$(imageName):$(Build.BuildId)
