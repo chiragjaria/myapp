@@ -4,10 +4,14 @@ import os
 
 app = FastAPI()
 
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASS = os.getenv("DB_PASS")
+DB_HOST = os.getenv("phost")
+DB_NAME = os.getenv("pname")
+DB_USER = os.getenv("puser")
+DB_PASS = os.getenv("ppassword")
+
+@app.get("/")
+def health_check():
+    return {"status": "ok"}
 
 @app.get("/create-table")
 def create_table():
@@ -18,16 +22,13 @@ def create_table():
         password=DB_PASS
     )
     cur = conn.cursor()
-
     cur.execute("""
         CREATE TABLE IF NOT EXISTS test_table (
             id SERIAL PRIMARY KEY,
             name VARCHAR(100)
         );
     """)
-
     conn.commit()
     cur.close()
     conn.close()
-
     return {"message": "Table created successfully"}
