@@ -10,12 +10,3 @@ RUN pip install -r requirements.txt
 COPY . .
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
-```
-
----
-
-**3. `requirements.txt` — Good, no changes needed**
-```
-fastapi
-uvicorn
-psycopg2-binary
