@@ -6,23 +6,18 @@ variables:
   imageName: fastapi-app
 
 stages:
-
 # ================= CI =================
 - stage: Build
-  displayName: Build Image
-
+  displayName: Build & Push Image
   jobs:
   - job: BuildJob
     pool:
       name: aks-agent-pool
-
     steps:
-
     - checkout: self
 
-    # 🔥 Build image in ACR (no Docker needed)
     - task: AzureCLI@2
-      displayName: Build Image in ACR
+      displayName: Build image in ACR
       inputs:
         azureSubscription: azure-service-connection
         scriptType: bash
@@ -34,44 +29,70 @@ stages:
             --image $(imageName):latest \
             .
 
-    # 🔥 Publish only manifests (not full repo)
+    # Publish ONLY the k8s folder, not entire repo
     - task: PublishBuildArtifacts@1
+      displayName: Publish k8s manifests
       inputs:
-        pathToPublish: $(System.DefaultWorkingDirectory)
+        pathToPublish: $(System.DefaultWorkingDirectory)/k8s
         artifactName: manifests
 
 # ================= CD =================
 - stage: Deploy
   displayName: Deploy to AKS
   dependsOn: Build
-
   jobs:
   - deployment: DeployToAKS
     pool:
       name: aks-agent-pool
-
-    environment: dev   # 🔥 adds approvals later
-
+    environment: dev
     variables:
-    - group: AKV-Variables
-
+    - group: AKV-Variables   # links to your variable group (DB_HOST, DB_NAME etc.)
     strategy:
       runOnce:
         deploy:
           steps:
-
           - download: current
             artifact: manifests
 
-          # 🔥 Inject image dynamically (no sed mess)
-          - task: KubernetesManifest@0
+          # Fetch secrets from AKV into pipeline variables
+          - task: AzureKeyVault@2
+            displayName: Fetch secrets from AKV
+            inputs:
+              azureSubscription: azure-service-connection
+              KeyVaultName: your-keyvault-name        # ← change this
+              SecretsFilter: 'DB-HOST,DB-NAME,DB-USER,DB-PASS'
+              RunAsPreJob: false
+
+          # Inject secrets into the k8s secret object before deploying
+          - task: AzureCLI@2
+            displayName: Create k8s secret from AKV values
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group your-resource-group \   # ← change this
+                  --name your-aks-cluster \                # ← change this
+                  --overwrite-existing
+
+                kubectl create secret generic db-secret \
+                  --from-literal=DB_HOST=$(DB-HOST) \
+                  --from-literal=DB_NAME=$(DB-NAME) \
+                  --from-literal=DB_USER=$(DB-USER) \
+                  --from-literal=DB_PASS=$(DB-PASS) \
+                  --namespace=default \
+                  --dry-run=client -o yaml | kubectl apply -f -
+
+          # Deploy using manifests
+          - task: KubernetesManifest@1
             displayName: Deploy to AKS
             inputs:
               action: deploy
-              kubernetesServiceConnection: azure-service-connection
+              kubernetesServiceConnection: aks-service-connection  # ← must be AKS type
               namespace: default
               manifests: |
-                deployment.yaml
-                service.yaml
+                $(Pipeline.Workspace)/manifests/deployment.yaml
+                $(Pipeline.Workspace)/manifests/service.yaml
               containers: |
-                myacrdevcj.azurecr.io/fastapi-app:$(Build.BuildId)
+                $(acrName).azurecr.io/$(imageName):$(Build.BuildId)
