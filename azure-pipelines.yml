@@ -14,36 +14,24 @@ stages:
   jobs:
   - job: BuildJob
     pool:
-      name: Azure Pipelines
-
-    variables:
-    - group: service-principal   # ✅ your SP variable group
+      vmImage: ubuntu-latest   # ✅ hosted agent
 
     steps:
     - checkout: self
 
-    # ✅ Manual login + ACR build (no AzureCLI task)
-    - script: |
-        echo "Logging into Azure..."
+    # ✅ Build & Push Docker Image to ACR
+    - task: Docker@2
+      displayName: Build and Push Image
+      inputs:
+        command: buildAndPush
+        repository: $(imageName)
+        dockerfile: Dockerfile
+        containerRegistry: dregistry   # your ACR service connection
+        tags: |
+          $(Build.BuildId)
+          latest
 
-        az login --service-principal \
-          -u $(AZ_CLIENT_ID) \
-          -p $(AZ_CLIENT_SECRET) \
-          --tenant $(AZ_TENANT_ID)
-
-        az account set --subscription $(AZ_SUBSCRIPTION_ID)
-
-        echo "Building image in ACR..."
-
-        az acr build \
-          --registry $(acrName) \
-          --image $(imageName):$(Build.BuildId) \
-          --image $(imageName):latest \
-          .
-
-      displayName: Login & Build Image via ACR
-
-    # Publish ONLY the k8s folder
+    # ✅ Publish ONLY k8s manifests
     - task: PublishBuildArtifacts@1
       displayName: Publish k8s manifests
       inputs:
@@ -59,13 +47,12 @@ stages:
   jobs:
   - deployment: DeployToAKS
     pool:
-      name: aks-agent-pool
+      vmImage: ubuntu-latest   # ✅ hosted agent
 
     environment: dev
 
     variables:
-    - group: AKV-Variables
-    - group: service-principal   # ✅ needed again for login
+    - group: AKV-Variables   # contains phost, puser, ppassword, pdb
 
     strategy:
       runOnce:
@@ -75,27 +62,20 @@ stages:
           - download: current
             artifact: manifests
 
-          # ✅ Login before AKS operations
-          - script: |
-              echo "Logging into Azure..."
-
-              az login --service-principal \
-                -u $(AZ_CLIENT_ID) \
-                -p $(AZ_CLIENT_SECRET) \
-                --tenant $(AZ_TENANT_ID)
-
-              az account set --subscription $(AZ_SUBSCRIPTION_ID)
-            displayName: Azure Login
-
-          # ✅ Get AKS credentials
-          - script: |
-              az aks get-credentials \
-                --resource-group rgp-dev-mes \
-                --name aks-mes-dev \
-                --overwrite-existing
+          # ✅ Login & get AKS credentials
+          - task: AzureCLI@2
             displayName: Get AKS Credentials
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group rgp-dev-mes \
+                  --name aks-mes-dev \
+                  --overwrite-existing
 
-          # ✅ Create/Update Kubernetes secret
+          # ✅ Create Kubernetes Secret from AKV values
           - script: |
               kubectl create secret generic db-secret \
                 --from-literal=DB_HOST=$(phost) \
