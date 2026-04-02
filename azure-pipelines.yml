@@ -14,7 +14,7 @@ stages:
   jobs:
   - job: BuildJob
     pool:
-      name: aks-agent-pool
+      name: Azure Pipelines
 
     variables:
     - group: service-principal   # ✅ your SP variable group
