@@ -1,8 +1,8 @@
-trigger:
-- main
-
 pool:
   name: aks-agent-pool
+
+trigger:
+- main
   
 variables:
   imageName: fastapi-app
