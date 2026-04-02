@@ -30,7 +30,7 @@ stages:
         command: buildAndPush
         repository: $(imageName)
         dockerfile: Dockerfile
-        containerRegistry: azure-service-connection
+        containerRegistry: dregistry
         tags: |
           $(Build.BuildId)
 
