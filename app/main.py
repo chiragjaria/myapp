@@ -1,6 +1,16 @@
 from fastapi import FastAPI
 import psycopg2
 import os
+import logging
+from datetime import datetime
+
+# Timestamped logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -11,24 +21,37 @@ DB_PASS = os.getenv("DB_PASS")
 
 @app.get("/")
 def health_check():
-    return {"status": "ok"}
+    logger.info("Health check called")
+    return {"status": "ok", "version": "v2"}
 
-@app.get("/create-table")
-def create_table():
-    conn = psycopg2.connect(
-        host=DB_HOST,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASS
-    )
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS test_table (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(100)
-        );
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
-    return {"message": "Table created successfully"}
+@app.get("/create-table/{table_name}")        # ← table name in URL
+def create_table(table_name: str):
+    logger.info(f"Request received to create table: {table_name}")
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS
+        )
+        cur = conn.cursor()
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"Table '{table_name}' created successfully at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        return {
+            "message": f"Table '{table_name}' created successfully",
+            "table_name": table_name,
+            "version": "v2",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except Exception as e:
+        logger.error(f"Failed to create table '{table_name}': {str(e)}")
+        return {"error": str(e)}
