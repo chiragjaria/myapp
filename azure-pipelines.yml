@@ -90,7 +90,7 @@ stages:
           - task: KubernetesManifest@1
             displayName: Deploy to AKS
             inputs:
-              kubernetesServiceEndpoint: 
+              kubernetesServiceEndpoint: azure-service-connection
               action: deploy
               namespace: default
               manifests: |
