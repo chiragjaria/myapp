@@ -4,10 +4,10 @@ import os
 
 app = FastAPI()
 
-DB_HOST = os.getenv("phost")
-DB_NAME = os.getenv("pdb")
-DB_USER = os.getenv("puser")
-DB_PASS = os.getenv("ppassword")
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
 
 @app.get("/")
 def health_check():
