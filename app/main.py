@@ -5,7 +5,7 @@ import os
 app = FastAPI()
 
 DB_HOST = os.getenv("phost")
-DB_NAME = os.getenv("pname")
+DB_NAME = os.getenv("pdb")
 DB_USER = os.getenv("puser")
 DB_PASS = os.getenv("ppassword")
 
