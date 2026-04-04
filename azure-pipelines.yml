@@ -6,63 +6,61 @@ variables:
   imageName: fastapi-app
 
 stages:
-
 # ================= CI =================
 - stage: Build
   displayName: Build & Push Image
-
   jobs:
   - job: BuildJob
     pool:
-      vmImage: ubuntu-latest   # ✅ hosted agent
-
+      vmImage: ubuntu-latest
     steps:
     - checkout: self
 
-    # ✅ Build & Push Docker Image to ACR
     - task: Docker@2
       displayName: Build and Push Image
       inputs:
         command: buildAndPush
-        repository: $(acrName).azurecr.io/$(imageName)
+        repository: $(imageName)          # ← just imageName, NOT full ACR URL
         dockerfile: Dockerfile
-        containerRegistry: dregistry   # your ACR service connection
+        containerRegistry: dregistry      # your ACR service connection
         tags: |
           $(Build.BuildId)
           latest
 
-    # ✅ Publish ONLY k8s manifests
     - task: PublishBuildArtifacts@1
       displayName: Publish k8s manifests
       inputs:
         pathToPublish: $(System.DefaultWorkingDirectory)/k8s
         artifactName: manifests
 
-
 # ================= CD =================
 - stage: Deploy
   displayName: Deploy to AKS
   dependsOn: Build
-
   jobs:
   - deployment: DeployToAKS
     pool:
-      vmImage: ubuntu-latest   # ✅ hosted agent
-
+      vmImage: ubuntu-latest
     environment: dev
-
     variables:
-    - group: AKV-Variables   # contains phost, puser, ppassword, pdb
-
+    - group: AKV-Variables
     strategy:
       runOnce:
         deploy:
           steps:
-
           - download: current
             artifact: manifests
 
-          # ✅ Login & get AKS credentials
+          # ✅ Fetch secrets FROM AKV into pipeline variables
+          - task: AzureKeyVault@2
+            displayName: Fetch secrets from AKV
+            inputs:
+              azureSubscription: azure-service-connection
+              KeyVaultName: kvmesdev123        # ← your AKV name from screenshot
+              SecretsFilter: 'phost,pdb,puser,ppassword'
+              RunAsPreJob: false
+
+          # ✅ Get AKS credentials
           - task: AzureCLI@2
             displayName: Get AKS Credentials
             inputs:
@@ -75,23 +73,33 @@ stages:
                   --name aks-mes-dev \
                   --overwrite-existing
 
-          # ✅ Create Kubernetes Secret from AKV values
-          - script: |
-              kubectl create secret generic db-secret \
-                --from-literal=DB_HOST=$(phost) \
-                --from-literal=DB_NAME=$(pdb) \
-                --from-literal=DB_USER=$(puser) \
-                --from-literal=DB_PASS=$(ppassword) \
-                --namespace=default \
-                --dry-run=client -o yaml | kubectl apply -f -
-            displayName: Create DB Secret
+          # ✅ Create k8s secret using AKV values (now populated)
+          - task: AzureCLI@2
+            displayName: Create DB Secret in AKS
+            inputs:
+              azureSubscription: azure-service-connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group rgp-dev-mes \
+                  --name aks-mes-dev \
+                  --overwrite-existing
 
-          # ✅ Deploy application
+                kubectl create secret generic db-secret \
+                  --from-literal=DB_HOST=$(phost) \
+                  --from-literal=DB_NAME=$(pdb) \
+                  --from-literal=DB_USER=$(puser) \
+                  --from-literal=DB_PASS=$(ppassword) \
+                  --namespace=default \
+                  --dry-run=client -o yaml | kubectl apply -f -
+
+          # ✅ Deploy to AKS
           - task: KubernetesManifest@1
             displayName: Deploy to AKS
             inputs:
-              kubernetesServiceEndpoint: aksconnection
               action: deploy
+              kubernetesServiceConnection: aksconnection   # ← correct parameter name
               namespace: default
               manifests: |
                 $(Pipeline.Workspace)/manifests/deployment.yaml
