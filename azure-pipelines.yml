@@ -66,7 +66,7 @@ stages:
           - task: AzureCLI@2
             displayName: Get AKS Credentials
             inputs:
-              azureSubscription: azure-service-connection
+              azureSubscription: aksconnection
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
@@ -90,6 +90,7 @@ stages:
           - task: KubernetesManifest@1
             displayName: Deploy to AKS
             inputs:
+              kubernetesServiceEndpoint: 
               action: deploy
               namespace: default
               manifests: |
